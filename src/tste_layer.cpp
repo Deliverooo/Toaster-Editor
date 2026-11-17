@@ -24,7 +24,6 @@ namespace tste
 		(void) ImGui::CreateContext();
 		ImGui_ImplToaster_InitInfo imgui_toaster_init_info{
 			.gpuCtx = p_app.gpuCtx,
-			.frameCtx = p_app.frameCtx,
 			.uploadCtx = p_app.uploadCtx,
 			.resourceHeap = p_app.resourceHeap,
 			.samplerHeap = p_app.samplerHeap,
@@ -32,7 +31,6 @@ namespace tste
 		};
 		ImGui_ImplToaster_Init(imgui_toaster_init_info);
 		ImGui_ImplGlfw_InitForVulkan(p_app.window.window, true);
-		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 	}
 
 	auto tste_destroy(Application &p_app, TSTELayer &p_layer) -> void
@@ -55,7 +53,7 @@ namespace tste
 		gpu::cmd_bind_resource_heap(p_app.gpuCtx, p_cmd, p_app.resourceHeap);
 		gpu::cmd_bind_sampler_heap(p_app.gpuCtx, p_cmd, p_app.samplerHeap);
 
-		ImGui_ImplToaster_NewFrame(p_app.frameIndex);
+		ImGui_ImplToaster_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
