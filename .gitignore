@@ -1,0 +1,10 @@
+.vs/
+.idea/
+.vscode/
+resources/scripts/bin/
+resources/scripts/obj/
+bin/
+obj/
+cmake-build-debug-visual-studio/
+lib/
+out/

@@ -1,0 +1,144 @@
+#version 460
+#define __MESH__
+
+#extension GL_GOOGLE_include_directive: require
+#include "common.glsl"
+
+struct DrawMeshTasksIndirectCommand
+{
+    uint32 workGroupsX;
+    uint32 workGroupsY;
+    uint32 workGroupsZ;
+
+    uint32 objectId; // Index into the object data buffer
+};
+
+layout (buffer_reference, scalar) readonly buffer IndirectCommandBuffer { DrawMeshTasksIndirectCommand commands[]; };
+
+layout (push_constant) uniform PushData
+{
+    CameraBuffer camera;
+    ObjectDataBuffer objectBuffer;
+    MaterialBuffer materialBuffer;
+    TransformDataBuffer transformBuffer;
+    MeshMetadataBuffer meshMetadataBuffer;
+    MaterialIndirectionBuffer materialIndirectionBuffer;
+    PointLightBuffer pointLightBuffer;
+    IndirectCommandBuffer indirectBuffer;
+
+    uintptr oitStorage;
+    float2 screenResolution;
+
+    uint32 diffuseIrradianceMapHeapSlot;
+    uint32 samplerId;
+
+    uint32 isTransparentPass;
+    uint32 activePointLightCount;
+} pcs;
+
+layout (local_size_x = WARP_SIZE, local_size_y = 1u, local_size_z = 1u) in; // 32 is the NVIDIA warp size
+layout (triangles, max_vertices = 64u, max_primitives = 128u) out;
+
+struct TaskPayload
+{
+    uint32 objectId;
+    uint32 meshletIds[WARP_SIZE];
+};
+
+
+taskPayloadSharedEXT TaskPayload taskPayload;
+
+shared uint32 s_totalPrimitives;
+
+// This will fix this error: "The Output Storage Class in a Mesh Execution Model must not be read from"
+shared float4 s_clipPositions[64u];
+
+void main()
+{
+    uint32 thread_id = gl_LocalInvocationID.x;
+
+    ObjectData obj_data = pcs.objectBuffer.data[taskPayload.objectId];
+    MeshMetadata metadata = pcs.meshMetadataBuffer.metadata[obj_data.meshId];
+    uint32 meshlet_index = uint32(metadata.meshletBufferOffset) + taskPayload.meshletIds[gl_WorkGroupID.x];
+    Meshlet meshlet = meshletPages[metadata.meshletBufferPageId].meshlets[meshlet_index];
+
+    uint32 material_index = pcs.materialIndirectionBuffer.materials[metadata.materialIndirectionBufferOffset + uint32(meshlet.materialIndex)];
+    Material material = pcs.materialBuffer.materials[material_index];
+
+    if (thread_id == 0u)
+    {
+        s_totalPrimitives = 0u;
+    }
+
+    for (uint32 vertex_id = thread_id; vertex_id < uint32(meshlet.vertexCount); vertex_id += gl_WorkGroupSize.x)
+    {
+        uint32 vertex_index = meshletVertexPages[metadata.meshletVertexBufferPageId].vertices[metadata.meshletVertexBufferOffset + uint32(meshlet.vertexOffset) + vertex_id];
+
+        Vertex vertex = vertexPages[metadata.vertexBufferPageId].vertices[metadata.vertexBufferOffset + vertex_index];
+
+        float4x4 transform = pcs.transformBuffer.data[obj_data.transformId];
+
+        float4 world_pos = transform * float4(vertex.position, 1.0f);
+        float4 view_pos = pcs.camera.view * world_pos;
+        float4 clip_pos = pcs.camera.proj * view_pos;
+
+        gl_MeshVerticesEXT[vertex_id].gl_Position = clip_pos;
+
+        s_clipPositions[vertex_id] = clip_pos;
+    }
+
+    // Ensure all vertices are written into gl_MeshVerticesEXT before evaluating triangles
+    barrier();
+
+    for (uint32 triangle_id = thread_id; triangle_id < uint32(meshlet.triangleCount); triangle_id += gl_WorkGroupSize.x)
+    {
+        uint32 triangle_index = uint32(metadata.meshletTriangleBufferOffset) + uint32(meshlet.triangleOffset) + triangle_id * 3u;
+
+        uint3 triangle = uint3(
+            meshletTrianglePages[metadata.meshletTriangleBufferPageId].indices[triangle_index + 0u],
+            meshletTrianglePages[metadata.meshletTriangleBufferPageId].indices[triangle_index + 1u],
+            meshletTrianglePages[metadata.meshletTriangleBufferPageId].indices[triangle_index + 2u]
+        );
+
+        bool keep_primitive = true;
+
+        if ((material.flags & TST_MATERIAL_FLAGS_BACKFACE_CULLING_BIT) != 0u)
+        {
+            float4 v0 = s_clipPositions[triangle.x];
+            float4 v1 = s_clipPositions[triangle.y];
+            float4 v2 = s_clipPositions[triangle.z];
+
+            float det = (v1.x * v2.y - v2.x * v1.y) * v0.w
+            + (v2.x * v0.y - v0.x * v2.y) * v1.w
+            + (v0.x * v1.y - v1.x * v0.y) * v2.w; // 2D cross product trick in homogeneous clip space :)
+            if (det >= 0.0f)
+            {
+                keep_primitive = false;
+            }
+        }
+
+        uint4 ballot = subgroupBallot(keep_primitive);
+        uint32 surviving_count_in_warp = subgroupBallotBitCount(ballot);
+        uint32 local_output_index = subgroupBallotExclusiveBitCount(ballot);
+
+        uint32 base_output_index = 0u;
+        if (subgroupElect())
+        {
+            base_output_index = atomicAdd(s_totalPrimitives, surviving_count_in_warp);
+        }
+        base_output_index = subgroupBroadcastFirst(base_output_index);
+
+        if (keep_primitive)
+        {
+            uint32 absolute_output_index = base_output_index + local_output_index;
+            gl_PrimitiveTriangleIndicesEXT[absolute_output_index] = triangle;
+        }
+    }
+
+    barrier(); // Wait for all threads to write to s_totalPrimitives
+
+    if (thread_id == 0u)
+    {
+        SetMeshOutputsEXT(meshlet.vertexCount, s_totalPrimitives);
+    }
+}
