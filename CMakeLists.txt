@@ -38,6 +38,11 @@ set(SRC
 		src/tste_layer.cpp
 		src/scene.cpp
 		src/shader_library.cpp
+		src/scene_renderer.cpp
+		src/environment.cpp
+		src/samplers.cpp
+		src/editor_camera.cpp
+		src/light_environment.cpp
 )
 
 add_executable(toaster_editor WIN32 ${SRC})
@@ -120,6 +125,7 @@ target_link_libraries(toaster_editor PRIVATE
 		Toaster::ToastKernel
 		Toaster::ToastOS
 		fastgltf::fastgltf
+		meshoptimizer
 		EnTT::EnTT
 		glfw
 		ImGui

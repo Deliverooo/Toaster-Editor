@@ -11,6 +11,7 @@
 #include <toast_gpu/api.hpp>
 #include <toast_gpu/frame.hpp>
 #include <toast_gpu/upload.hpp>
+#include <toast_kernel/events/event.hpp>
 
 #include <toast_render/material.hpp>
 #include <toast_render/mesh.hpp>
@@ -162,6 +163,10 @@ TST_OS_WINMAIN()
 			// Poll the material manager's pending textures and update all dirty materials (this should not just happen inside knl::window_is_minimised(app.window))
 			rnd::material_mngr_poll_pending_textures(app.materialMngr);
 			rnd::material_mngr_update_dirty_materials(app.materialMngr, app.frameIndex);
+
+			// Bind the descriptor heaps for the frame
+			gpu::cmd_bind_resource_heap(app.gpuCtx, cmd, app.resourceHeap);
+			gpu::cmd_bind_sampler_heap(app.gpuCtx, cmd, app.samplerHeap);
 
 			gpu::swapchain_set_frame_marker(app.gpuCtx, app.window.swapchain, gpu::EFrameMarker::eRendersubmitStart);
 			if (!knl::window_is_minimised(app.window))
