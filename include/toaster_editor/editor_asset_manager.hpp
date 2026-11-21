@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <toast_gpu/api.hpp>
 #include <toast_lib/map.hpp>
 #include <toast_lib/pool.hpp>
 
@@ -11,8 +12,9 @@ namespace tste
 	struct AssetMetadata
 	{
 		AssetID               id{c_invalidAssetId};
-		EAssetType            type;
-		std::filesystem::path path;
+		std::filesystem::path path; // The path to the actual asset, not the .meta
+		uint64                sourceWriteTime{0ull};
+		EAssetType            type{EAssetType::eMax};
 	};
 
 	struct EditorAssetManagerDesc
@@ -32,6 +34,30 @@ namespace tste
 		bool       success{false};
 	};
 
+	struct DecodedTexturePayload
+	{
+		Vector<uint8> pixelData;
+		math::UInt2   extent{0u, 0u};
+		uint32        mipLevels{1u};
+		gpu::EFormat  format{gpu::EFormat::eUndefined};
+	};
+
+	struct DecodedMaterialPayload
+	{
+		math::Float4                          albedoColour{1.0f, 1.0f, 1.0f, 1.0f};
+		float32                               roughness{0.5f};
+		float32                               metalness{0.0f};
+		rnd::EMaterialFlags                   flags{};
+		rnd::PerMaterialTextureArray<AssetID> textureIds{};
+	};
+
+	struct PendingDestroy
+	{
+		uint64     frame{0ull};
+		uint64     handle{0ull};
+		EAssetType type{EAssetType::eMax};
+	};
+
 	struct EditorAssetManager
 	{
 		EditorAssetManagerDesc desc;
@@ -45,11 +71,13 @@ namespace tste
 		UnorderedMap<AssetID, TextureAssetHandle>  loadedTextures;
 		UnorderedMap<AssetID, MaterialAssetHandle> loadedMaterials;
 
+		Vector<PendingDestroy> pendingDestroys;
+		uint64                 frameCounter{0ull};
+
 		mtx_t                    jobQueueMtx;
 		Vector<CompletedDiskJob> completedJobs;
 
-		gpu::TextureHandle fallbackTexture;
-		uint32             fallbackTextureShaderReadHeapSlot;
+		DecodedTexturePayload errorTexturePayload;
 	};
 
 	auto asset_mngr_create(EditorAssetManager &p_out_mngr, const EditorAssetManagerDesc &p_desc) -> void;

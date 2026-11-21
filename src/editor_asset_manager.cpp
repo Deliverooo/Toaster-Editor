@@ -1,32 +1,19 @@
 #include "toaster_editor/editor_asset_manager.hpp"
 
 #include <execution>
+#include <fstream>
 #include <print>
-#include <ranges>
 #include <toast_gpu/api.hpp>
 #include <toast_gpu/upload.hpp>
 
 #include <stb/stb_image.h>
 
+#include <simdjson.h>
+
+#include "toaster_editor/tste_common.hpp"
+
 namespace tste
 {
-	struct DecodedTexturePayload
-	{
-		Vector<uint8> pixelData;
-		math::UInt2   extent{0u, 0u};
-		uint32        mipLevels{1u};
-		gpu::EFormat  format{gpu::EFormat::eUndefined};
-	};
-
-	struct DecodedMaterialPayload
-	{
-		math::Float4                          albedoColour{1.0f, 1.0f, 1.0f, 1.0f};
-		float32                               roughness{0.5f};
-		float32                               metalness{0.0f};
-		rnd::EMaterialFlags                   flags{};
-		rnd::PerMaterialTextureArray<AssetID> textureIds{};
-	};
-
 	auto _decode_texture_from_disc(const std::filesystem::path &p_path, DecodedTexturePayload *p_payload) -> bool
 	{
 		int32 width{0};
@@ -41,7 +28,7 @@ namespace tste
 		p_payload->pixelData.resize(buffer_size);
 		std::memcpy(p_payload->pixelData.data(), data, buffer_size);
 
-		p_payload->format    = gpu::EFormat::eB8G8R8A8Srgb;
+		p_payload->format    = gpu::EFormat::eR8G8B8A8Srgb;
 		p_payload->extent    = {static_cast<uint32>(width), static_cast<uint32>(height)};
 		p_payload->mipLevels = 1u;
 		// p_payload->mipLevels = static_cast<uint32>(std::floor(std::log2(std::max(width, height)))) + 1u;
@@ -51,6 +38,7 @@ namespace tste
 		return true;
 	}
 
+	// Parses the .tmat file
 	auto _decode_material_from_disc(const std::filesystem::path &p_path, DecodedMaterialPayload *p_payload) -> bool
 	{
 		// TODO: Parse material
@@ -62,23 +50,19 @@ namespace tste
 	{
 		auto it{p_mngr.loadedTextures.find(p_job.assetId)};
 		if (it == p_mngr.loadedTextures.end())
-		{
-			delete static_cast<DecodedTexturePayload *>(p_job.payload);
 			return;
-		}
 
 		auto asset{p_mngr.textureAssets.try_get(it->second)};
 		if (!asset)
-		{
-			delete static_cast<DecodedTexturePayload *>(p_job.payload);
 			return;
-		}
 
 		auto payload{static_cast<DecodedTexturePayload *>(p_job.payload)};
+
+		// If the texture failed to load, we still create it, just with a new error payload.
 		if (!p_job.success || !payload)
 		{
-			asset->state = EAssetState::eFailed;
-			return;
+			asset->state = EAssetState::eFailed; // Technically only for the editor
+			payload      = &p_mngr.errorTexturePayload;
 		}
 
 		gpu::TextureDesc texture_desc{};
@@ -111,17 +95,11 @@ namespace tste
 	{
 		auto it{p_mngr.loadedMaterials.find(p_job.assetId)};
 		if (it == p_mngr.loadedMaterials.end())
-		{
-			delete static_cast<DecodedMaterialPayload *>(p_job.payload);
 			return;
-		}
 
 		auto asset{p_mngr.materialAssets.try_get(it->second)};
 		if (!asset)
-		{
-			delete static_cast<DecodedMaterialPayload *>(p_job.payload);
 			return;
-		}
 
 		auto payload{static_cast<DecodedMaterialPayload *>(p_job.payload)};
 		if (!p_job.success || !payload)
@@ -159,7 +137,52 @@ namespace tste
 		}
 		rnd::material_mark_dirty(material_mngr, asset->material);
 		asset->state = EAssetState::eReady;
-		delete payload;
+	}
+
+	auto _destroy_pending_asset(EditorAssetManager &p_mngr, const PendingDestroy &p_pending_destroy) -> void
+	{
+		switch (p_pending_destroy.type)
+		{
+			case EAssetType::eTexture:
+			{
+				p_mngr.textureAssets.destroy(TextureAssetHandle{p_pending_destroy.handle});
+				break;
+			}
+			case EAssetType::eMaterial:
+			{
+				p_mngr.materialAssets.destroy(MaterialAssetHandle{p_pending_destroy.handle});
+				break;
+			}
+			case EAssetType::eStaticMesh:
+			{
+				break;
+			}
+			default: break;
+		}
+	}
+
+	auto _destroy_job_payload(const CompletedDiskJob &p_job) -> void
+	{
+		switch (p_job.type)
+		{
+			case EAssetType::eTexture:
+			{
+				// Avoid deleting the default fallback texture's payload
+				if (p_job.success && p_job.payload)
+					delete static_cast<DecodedTexturePayload *>(p_job.payload);
+				break;
+			}
+			case EAssetType::eMaterial:
+			{
+				delete static_cast<DecodedMaterialPayload *>(p_job.payload);
+				break;
+			}
+			case EAssetType::eStaticMesh:
+			{
+				break;
+			}
+			default: break;
+		}
 	}
 
 	auto asset_mngr_create(EditorAssetManager &p_out_mngr, const EditorAssetManagerDesc &p_desc) -> void
@@ -195,14 +218,33 @@ namespace tste
 		});
 
 		mtx_init(&p_out_mngr.jobQueueMtx, mtx_plain);
+
+		constexpr Array<uint32, 4u> c_error_texture_pixel_data{0xFFFF00FFu, 0xFFFF00FFu, 0x00000000u, 0x00000000u};
+
+		Vector<uint8> pixel_data_bytes(c_error_texture_pixel_data.size_bytes());
+		std::memcpy(pixel_data_bytes.data(), c_error_texture_pixel_data.data(), c_error_texture_pixel_data.size_bytes());
+
+		p_out_mngr.errorTexturePayload = DecodedTexturePayload{.pixelData = pixel_data_bytes, .extent = {2u, 2u}, .mipLevels = 1u, .format = gpu::EFormat::eR8G8B8A8Srgb};
 	}
 
 	auto asset_mngr_destroy(EditorAssetManager &p_mngr) -> void
 	{
-		mtx_destroy(&p_mngr.jobQueueMtx);
+		for (const auto &job: p_mngr.completedJobs)
+			_destroy_job_payload(job);
+
+		p_mngr.completedJobs.clear();
+
+		for (const auto &pending: p_mngr.pendingDestroys)
+			_destroy_pending_asset(p_mngr, pending);
+
+		p_mngr.pendingDestroys.clear();
 
 		p_mngr.materialAssets.clear();
 		p_mngr.textureAssets.clear();
+		p_mngr.loadedMaterials.clear();
+		p_mngr.loadedTextures.clear();
+
+		mtx_destroy(&p_mngr.jobQueueMtx);
 	}
 
 	auto asset_mngr_update(EditorAssetManager &p_mngr) -> void
@@ -229,6 +271,8 @@ namespace tste
 				}
 				default: break;
 			}
+
+			_destroy_job_payload(job);
 		}
 
 		// Remove all unused textures
@@ -237,7 +281,7 @@ namespace tste
 			const TextureAsset &asset{p_mngr.textureAssets[texture_it->second]};
 			if (asset.refCount == 0u && asset.state != EAssetState::eLoading && asset.state != EAssetState::eUploadingToGPU)
 			{
-				p_mngr.textureAssets.destroy(texture_it->second);
+				p_mngr.pendingDestroys.emplace_back(PendingDestroy{p_mngr.frameCounter, static_cast<uint64>(texture_it->second), EAssetType::eTexture});
 				texture_it = p_mngr.loadedTextures.erase(texture_it);
 			}
 			else
@@ -250,12 +294,25 @@ namespace tste
 			const MaterialAsset &asset{p_mngr.materialAssets[material_it->second]};
 			if (asset.refCount == 0u && asset.state != EAssetState::eLoading && asset.state != EAssetState::eUploadingToGPU)
 			{
-				p_mngr.materialAssets.destroy(material_it->second);
+				p_mngr.pendingDestroys.emplace_back(PendingDestroy{p_mngr.frameCounter, static_cast<uint64>(material_it->second), EAssetType::eMaterial});
 				material_it = p_mngr.loadedMaterials.erase(material_it);
 			}
 			else
 				++material_it;
 		}
+
+		for (auto it{p_mngr.pendingDestroys.begin()}; it != p_mngr.pendingDestroys.end();)
+		{
+			if (p_mngr.frameCounter - it->frame >= c_maxFramesInFlight)
+			{
+				_destroy_pending_asset(p_mngr, *it);
+				it = p_mngr.pendingDestroys.erase(it);
+			}
+			else
+				++it;
+		}
+
+		++p_mngr.frameCounter;
 	}
 
 	auto texture_asset_acquire(EditorAssetManager &p_mngr, TextureAssetHandle p_handle) -> void
@@ -267,6 +324,7 @@ namespace tste
 	auto texture_asset_release(EditorAssetManager &p_mngr, TextureAssetHandle p_handle) -> void
 	{
 		TextureAsset &asset{p_mngr.textureAssets[p_handle]};
+		TST_ASSERT_MSG(asset.refCount > 0u, "Ref count is 0");
 		--asset.refCount;
 	}
 
@@ -279,6 +337,7 @@ namespace tste
 	auto material_asset_release(EditorAssetManager &p_mngr, MaterialAssetHandle p_handle) -> void
 	{
 		MaterialAsset &asset{p_mngr.materialAssets[p_handle]};
+		TST_ASSERT_MSG(asset.refCount > 0u, "Ref count is 0");
 		--asset.refCount;
 	}
 
@@ -395,5 +454,7 @@ namespace tste
 			p_mngr.completedJobs.emplace_back(CompletedDiskJob{.assetId = p_id, .payload = payload, .type = EAssetType::eMaterial, .success = success});
 			mtx_unlock(&p_mngr.jobQueueMtx);
 		}
+
+		return out_handle;
 	}
 }

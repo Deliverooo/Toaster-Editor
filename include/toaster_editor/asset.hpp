@@ -1,5 +1,6 @@
 #pragma once
 
+#include <random>
 #include <toast_render/material.hpp>
 
 using namespace toaster;
@@ -9,6 +10,15 @@ namespace tste
 	using AssetID = uint64;
 
 	constexpr AssetID c_invalidAssetId{0ull};
+
+	inline auto asset_id_generate() -> AssetID
+	{
+		thread_local std::random_device random_device{};
+		thread_local std::mt19937_64    random_generator{random_device()};
+
+		const AssetID id{random_generator()};
+		return (id == c_invalidAssetId) ? 1ull : id;
+	}
 
 	enum class EAssetType : uint8
 	{

@@ -199,7 +199,7 @@ namespace tste
 		};
 		PushData push_data{};
 		push_data.cameraBuffer = p_execution_info.cameraBufferAddress;
-		push_data.samplerId    = p_scene_renderer.samplers->heapSlots[ESamplerType::eTextureSampler];
+		push_data.samplerId    = p_scene_renderer.samplers->heapSlots[ESamplerType::eTextureSamplerLinear];
 		push_data.skyboxMap    = environment.shaderReadHeapSlots[EEnvironmentMapType::eSkybox];
 
 		gpu::cmd_push_data(gpu_ctx, p_execution_info.cmd, push_data);
@@ -428,7 +428,7 @@ namespace tste
 		push_data.pointLightBuffer             = p_execution_info.pointLightBufferAddress;
 		push_data.indirectBuffer               = gpu::buffer_get_address(gpu_ctx, p_scene_renderer.indirectBuffers[frame_index]);
 		push_data.diffuseIrradianceMapHeapSlot = environment.shaderReadHeapSlots[EEnvironmentMapType::eDiffuseIrradiance];
-		push_data.samplerId                    = p_scene_renderer.samplers->heapSlots[ESamplerType::eTextureSampler];
+		push_data.samplerId                    = p_scene_renderer.samplers->heapSlots[ESamplerType::eTextureSamplerLinear];
 		push_data.isTransparentPass            = false;
 		push_data.activePointLightCount        = p_execution_info.activePointLightCount;
 		push_data.screenResolution             = {static_cast<float32>(p_scene_renderer.renderAreaSize.x), static_cast<float32>(p_scene_renderer.renderAreaSize.y)};
@@ -517,7 +517,7 @@ namespace tste
 			push_data.pointLightBuffer             = p_execution_info.pointLightBufferAddress;
 			push_data.indirectBuffer               = gpu::buffer_get_address(gpu_ctx, p_scene_renderer.indirectBuffers[frame_index]);
 			push_data.diffuseIrradianceMapHeapSlot = environment.shaderReadHeapSlots[EEnvironmentMapType::eDiffuseIrradiance];
-			push_data.samplerId                    = p_scene_renderer.samplers->heapSlots[ESamplerType::eTextureSampler];
+			push_data.samplerId                    = p_scene_renderer.samplers->heapSlots[ESamplerType::eTextureSamplerLinear];
 			push_data.isTransparentPass            = true;
 			push_data.activePointLightCount        = p_execution_info.activePointLightCount;
 			push_data.oitStorage                   = gpu::buffer_get_address(gpu_ctx, p_scene_renderer.oitBuffers[frame_index]);
@@ -587,7 +587,7 @@ namespace tste
 		push_data.oitStorage             = gpu::buffer_get_address(gpu_ctx, p_scene_renderer.oitBuffers[frame_index]);
 		push_data.screenResolution       = {static_cast<float32>(p_scene_renderer.renderAreaSize.x), static_cast<float32>(p_scene_renderer.renderAreaSize.y)};
 		push_data.colourAttachmentHeapId = p_scene_renderer.colourAttachmentHeapSlot;
-		push_data.samplerHeapId          = p_scene_renderer.samplers->heapSlots[ESamplerType::eTextureSampler];
+		push_data.samplerHeapId          = p_scene_renderer.samplers->heapSlots[ESamplerType::eTextureSamplerLinear];
 
 		gpu::cmd_push_data(gpu_ctx, p_execution_info.cmd, push_data);
 		gpu::cmd_draw_mesh_tasks(gpu_ctx, p_execution_info.cmd, 1u, 1u, 1u);
@@ -636,7 +636,7 @@ namespace tste
 		PushData push_data{};
 		push_data.screenResolution       = {static_cast<float32>(p_scene_renderer.renderAreaSize.x), static_cast<float32>(p_scene_renderer.renderAreaSize.y)};
 		push_data.colourAttachmentHeapId = p_scene_renderer.colourAttachmentHeapSlot;
-		push_data.samplerHeapId          = p_scene_renderer.samplers->heapSlots[ESamplerType::eTextureSampler];
+		push_data.samplerHeapId          = p_scene_renderer.samplers->heapSlots[ESamplerType::eTextureSamplerLinear];
 
 		gpu::cmd_push_data(gpu_ctx, p_execution_info.cmd, push_data);
 		gpu::cmd_draw_mesh_tasks(gpu_ctx, p_execution_info.cmd, 1u, 1u, 1u);

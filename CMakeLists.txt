@@ -97,6 +97,12 @@ FetchContent_Declare(
 		GIT_TAG main
 )
 
+set(SIMDJSON_INSTALL ON CACHE BOOL "" FORCE)
+FetchContent_Declare(
+		simdjson
+		URL https://github.com/simdjson/simdjson/archive/refs/heads/master.zip
+)
+
 FetchContent_Declare(
 		fastgltf
 		URL https://github.com/spnda/fastgltf/archive/refs/tags/v1.0.1.zip
@@ -118,6 +124,7 @@ FetchContent_MakeAvailable(imgui)
 FetchContent_MakeAvailable(entt)
 FetchContent_MakeAvailable(jolt)
 FetchContent_MakeAvailable(ktx)
+FetchContent_MakeAvailable(simdjson)
 FetchContent_MakeAvailable(fastgltf)
 FetchContent_MakeAvailable(tracy)
 FetchContent_MakeAvailable(meshopt)
@@ -125,6 +132,7 @@ FetchContent_MakeAvailable(meshopt)
 target_link_libraries(toaster_editor PRIVATE
 		Toaster::ToastKernel
 		Toaster::ToastOS
+		simdjson::simdjson
 		fastgltf::fastgltf
 		meshoptimizer
 		EnTT::EnTT

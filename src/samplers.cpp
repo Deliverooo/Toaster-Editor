@@ -8,13 +8,21 @@ namespace tste
 	{
 		EArray<gpu::SamplerDesc, ESamplerType, ESamplerType::eMax> out_descs;
 
-		gpu::SamplerDesc &texture_sampler_desc{out_descs[ESamplerType::eTextureSampler]};
-		texture_sampler_desc.minFilter    = gpu::EFilter::eLinear;
-		texture_sampler_desc.magFilter    = gpu::EFilter::eLinear;
-		texture_sampler_desc.mipmapMode   = gpu::ESamplerMipmapMode::eLinear;
-		texture_sampler_desc.addressModeU = gpu::ESamplerAddressMode::eRepeat;
-		texture_sampler_desc.addressModeV = gpu::ESamplerAddressMode::eRepeat;
-		texture_sampler_desc.addressModeW = gpu::ESamplerAddressMode::eRepeat;
+		gpu::SamplerDesc &texture_sampler_linear_desc{out_descs[ESamplerType::eTextureSamplerLinear]};
+		texture_sampler_linear_desc.minFilter    = gpu::EFilter::eLinear;
+		texture_sampler_linear_desc.magFilter    = gpu::EFilter::eLinear;
+		texture_sampler_linear_desc.mipmapMode   = gpu::ESamplerMipmapMode::eLinear;
+		texture_sampler_linear_desc.addressModeU = gpu::ESamplerAddressMode::eRepeat;
+		texture_sampler_linear_desc.addressModeV = gpu::ESamplerAddressMode::eRepeat;
+		texture_sampler_linear_desc.addressModeW = gpu::ESamplerAddressMode::eRepeat;
+
+		gpu::SamplerDesc &texture_sampler_nearest_desc{out_descs[ESamplerType::eTextureSamplerNearest]};
+		texture_sampler_nearest_desc.minFilter    = gpu::EFilter::eNearest;
+		texture_sampler_nearest_desc.magFilter    = gpu::EFilter::eNearest;
+		texture_sampler_nearest_desc.mipmapMode   = gpu::ESamplerMipmapMode::eNearest;
+		texture_sampler_nearest_desc.addressModeU = gpu::ESamplerAddressMode::eRepeat;
+		texture_sampler_nearest_desc.addressModeV = gpu::ESamplerAddressMode::eRepeat;
+		texture_sampler_nearest_desc.addressModeW = gpu::ESamplerAddressMode::eRepeat;
 
 		return out_descs;
 	}

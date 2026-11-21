@@ -5,7 +5,7 @@
 
 namespace tste
 {
-	enum class ESamplerType : uint8 { eTextureSampler = 0u, eMax = 1u };
+	enum class ESamplerType : uint8 { eTextureSamplerLinear = 0u, eTextureSamplerNearest = 1u, eMax = 2u };
 
 	struct Samplers
 	{

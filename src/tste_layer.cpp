@@ -431,7 +431,7 @@ namespace tste
 		p_layer.defaultMaterial = rnd::material_create(p_app.materialMngr);
 		rnd::material_set_albedo_colour(p_app.materialMngr, p_layer.defaultMaterial, {1.0f, 1.0f, 1.0f, 1.0f});
 
-		p_layer.assetMngr.registry[1ull] = AssetMetadata{1ull, EAssetType::eTexture, R"(C:\Users\Oliver\Pictures\baki_man.jpg)"};
+		p_layer.assetMngr.registry[1ull] = AssetMetadata{1ull, R"(C:\Users\Oliver\Pictures\baki_man.jpg)", 0ull, EAssetType::eTexture};
 		TextureAssetHandle texture_asset{texture_asset_load(p_layer.assetMngr, 1ull)};
 
 		const auto &asset{p_layer.assetMngr.textureAssets[texture_asset]};
@@ -493,7 +493,8 @@ namespace tste
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		ImGui::ShowDemoWindow();
+		{
+		}
 
 		ImGui::Render();
 
@@ -684,9 +685,6 @@ namespace tste
 		ed.dispatch<knl::WindowFileDropEvent>([&p_layer](knl::WindowFileDropEvent &p_e)-> bool
 		{
 			const Vector<String> &paths{p_e.getFilepaths()};
-
-			// p_layer.
-			// p_layer.testEntity;
 
 			return true;
 		});
