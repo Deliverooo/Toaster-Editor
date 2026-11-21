@@ -156,7 +156,10 @@ namespace tste
 
 			rnd::MaterialHandle material_handle{p_default_material};
 			if (primitive.materialIndex.has_value())
-				material_handle = p_scene_materials[primitive.materialIndex.value()];
+			{
+				material_handle = p_default_material;
+				// material_handle = p_scene_materials[primitive.materialIndex.value()];
+			}
 
 			uint16 local_material_index{0u};
 			if (auto material_it{std::ranges::find(p_out_mesh_materials, material_handle)}; material_it != p_out_mesh_materials.end())
@@ -392,6 +395,14 @@ namespace tste
 		const math::UInt2 window_size{knl::window_get_size(p_app.window)};
 		scene_renderer_create(p_layer.sceneRenderer, p_layer.scene, p_layer.shaderLib, p_layer.samplers, {.initialSize = window_size});
 
+		asset_mngr_create(p_layer.assetMngr, EditorAssetManagerDesc{
+							  .materialMngr = p_app.materialMngr,
+							  .gpuCtx = p_app.gpuCtx,
+							  .allocCtx = p_app.allocCtx,
+							  .uploadCtx = p_app.uploadCtx,
+							  .resourceHeap = p_app.resourceHeap
+						  });
+
 		#pragma region camera
 
 		p_layer.editorCamera = EditorCamera{90.0f, knl::window_get_aspect_ratio(p_app.window), 0.1f, 1000.0f};
@@ -418,7 +429,16 @@ namespace tste
 		ImGui_ImplGlfw_InitForVulkan(p_app.window.window, true);
 
 		p_layer.defaultMaterial = rnd::material_create(p_app.materialMngr);
-		rnd::material_set_albedo_colour(p_app.materialMngr, p_layer.defaultMaterial, {1.0f, 0.0f, 1.0f, 1.0f});
+		rnd::material_set_albedo_colour(p_app.materialMngr, p_layer.defaultMaterial, {1.0f, 1.0f, 1.0f, 1.0f});
+
+		p_layer.assetMngr.registry[1ull] = AssetMetadata{1ull, EAssetType::eTexture, R"(C:\Users\Oliver\Pictures\baki_man.jpg)"};
+		TextureAssetHandle texture_asset{texture_asset_load(p_layer.assetMngr, 1ull)};
+
+		const auto &asset{p_layer.assetMngr.textureAssets[texture_asset]};
+		rnd::material_set_texture(p_app.materialMngr, p_layer.defaultMaterial, rnd::EMaterialTextureType::eAlbedoMap,
+								  rnd::MaterialTexture{asset.texture, asset.stateTracker, asset.shaderReadHeapSlot});
+
+		texture_asset_release(p_layer.assetMngr, texture_asset);
 
 		const std::filesystem::path mesh_path{R"(C:\Users\Oliver\Downloads\main_sponza\main_sponza\NewSponza_Main_glTF_003.gltf)"};
 		p_layer.testEntity = load_gltf_scene_entity(p_app, p_layer, mesh_path);
@@ -431,6 +451,8 @@ namespace tste
 		ImGui::DestroyContext();
 
 		gpu::buffer_destroy_n(p_app.gpuCtx, p_layer.cameraUBOs);
+
+		asset_mngr_destroy(p_layer.assetMngr);
 
 		scene_renderer_destroy(p_layer.sceneRenderer);
 		scene_destroy(p_layer.scene);
@@ -463,6 +485,8 @@ namespace tste
 
 	auto tste_on_render(Application &p_app, TSTELayer &p_layer, gpu::CommandListHandle p_cmd) -> void
 	{
+		asset_mngr_update(p_layer.assetMngr);
+
 		#pragma region ImGui
 
 		ImGui_ImplToaster_NewFrame();

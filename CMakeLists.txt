@@ -43,6 +43,7 @@ set(SRC
 		src/samplers.cpp
 		src/editor_camera.cpp
 		src/light_environment.cpp
+		src/editor_asset_manager.cpp
 )
 
 add_executable(toaster_editor WIN32 ${SRC})
@@ -128,6 +129,7 @@ target_link_libraries(toaster_editor PRIVATE
 		meshoptimizer
 		EnTT::EnTT
 		glfw
+		Toaster::stb
 		ImGui
 		Tracy::TracyClient
 )

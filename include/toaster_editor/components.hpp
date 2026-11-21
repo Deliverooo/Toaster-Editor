@@ -2,7 +2,7 @@
 
 #include <entt/entity/entity.hpp>
 
-#include "tste_common.hpp"
+#include "asset.hpp"
 #include "toast_math/math_vector.hpp"
 
 namespace toaster::rnd

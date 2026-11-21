@@ -112,7 +112,7 @@ TST_OS_WINMAIN()
 			gpu::cmd_list_allocate_n(app.gpuCtx, command_allocators[i], std::span<gpu::CommandListHandle>{&command_lists[i], 1ull});
 		}
 
-		static constexpr uint32 c_framerate{360u}; // TODO: Set to the monitor's refresh rate
+		static constexpr uint32 c_framerate{UINT32_MAX}; // TODO: Set to the monitor's refresh rate
 
 		auto last_time{std::chrono::steady_clock::now()};
 		gpu::swapchain_set_max_framerate(app.gpuCtx, app.window.swapchain, c_framerate);

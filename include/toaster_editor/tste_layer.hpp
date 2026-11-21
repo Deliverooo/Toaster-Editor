@@ -3,6 +3,7 @@
 #include <toast_render/material.hpp>
 
 #include "application.hpp"
+#include "editor_asset_manager.hpp"
 #include "editor_camera.hpp"
 #include "shader_library.hpp"
 
@@ -21,7 +22,9 @@ namespace tste
 		Scene              scene;
 		SceneRenderer      sceneRenderer;
 
-		EditorCamera                     editorCamera; // TODO: Actual first person camera that is not ripped from OEX
+		EditorAssetManager assetMngr;
+
+		EditorCamera                 editorCamera; // TODO: Actual first person camera that is not ripped from OEX
 		PFFArray<gpu::BufferHandle>  cameraUBOs;
 		PFFArray<gpu::DeviceAddress> cameraBDAs;
 

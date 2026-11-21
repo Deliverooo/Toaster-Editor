@@ -127,6 +127,6 @@ void main()
 
     //    final_colour = float4(float3(glob.metalness), 1.0f);
 
-    o_Colour = final_colour;
+    o_Colour = glob.albedo;
     //    o_Colour = float4(1.0f);
 }
